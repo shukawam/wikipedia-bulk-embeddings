@@ -8,7 +8,7 @@ from datasets import (
     IterableDataset,
     IterableDatasetDict,
 )
-from oci.retry import ExponentialBackoffWithFullJitterEqualForThrottlesRetryStrategy
+from oci.retry import ExponentialBackoffWithFullJitterRetryStrategy
 from oci.retry.retry_checkers import RetryCheckerContainer, LimitBasedRetryChecker
 from oci.config import from_file
 from oci.auth.signers import InstancePrincipalsSecurityTokenSigner
@@ -24,8 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 96
-MAX_THREADS = min(mp.cpu_count(), 4)
-print(f"{mp.cpu_count()=}")
+MAX_THREADS = min(mp.cpu_count(), 2)
 OUTPUT_FILE = f"wiki_ja_embeddings_{datetime.date.today()}.csv"
 CSV_COLUMNS = ["id", "pageid", "revid", "title", "section", "text", "embedding"]
 LOCK = threading.Lock()
@@ -33,28 +32,28 @@ LOCK = threading.Lock()
 # 環境に応じて設定
 COMPARTMENT_ID = os.getenv("COMPARTMENT_ID")
 if COMPARTMENT_ID == None:
-    print(f"compartment_idを設定してください")
+    logger.info("compartment_idを設定してください")
     sys.exit(1)
 REGION = os.getenv("REGION", "us-chicago-1")
 USE_IP = os.getenv("USE_IP", False)
 
 checker_container = RetryCheckerContainer(checkers=[LimitBasedRetryChecker()])
-retry_strategy = ExponentialBackoffWithFullJitterEqualForThrottlesRetryStrategy(
-    base_sleep_time_seconds=10,
-    exponent_growth_factor=2,
-    max_wait_between_calls_seconds=30,
+retry_strategy = ExponentialBackoffWithFullJitterRetryStrategy(
+    base_sleep_time_seconds=30,
+    exponent_growth_factor=4,
+    max_wait_between_calls_seconds=60,
     checker_container=checker_container,
 )
 
 if USE_IP == False:
-    print(f"Use default config")
+    logger.info("Use default config")
     generative_ai_client = GenerativeAiInferenceClient(
         config=from_file(),
         service_endpoint=f"https://inference.generativeai.{REGION}.oci.oraclecloud.com",
         retry_strategy=retry_strategy,
     )
 else:
-    print(f"Use Instance Principal")
+    logger.info("Use Instance Principal")
     generative_ai_client = GenerativeAiInferenceClient(
         config={},
         signer=InstancePrincipalsSecurityTokenSigner(),
@@ -81,7 +80,7 @@ def get_text_embeddings(texts: list[str]) -> list[list[float]]:
         )
         return response.data.embeddings
     except Exception as e:
-        print(f"Embeddingの取得に失敗しました: {e}")
+        logger.error(f"Embeddingの取得に失敗しました: {e}")
         return [None] * len(texts)
 
 
@@ -122,7 +121,7 @@ def load_wikipedia_japanese_datasets() -> (
         cache_dir="./datasets",
         trust_remote_code=True,
     )
-    print(f"{wiki_ja=}")
+    logger.info(f"{wiki_ja=}")
     return wiki_ja
 
 
@@ -137,7 +136,7 @@ def main():
             try:
                 future.result()
             except Exception as e:
-                print(f"バッチ処理中にエラーが発生しました: {e}")
+                logger.error(f"バッチ処理中にエラーが発生しました: {e}")
 
 
 if __name__ == "__main__":
