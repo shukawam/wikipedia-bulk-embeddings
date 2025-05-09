@@ -26,6 +26,11 @@ genai_client = GenerativeAiInferenceClient(
     service_endpoint="https://inference.generativeai.ap-osaka-1.oci.oraclecloud.com"
 )
 
+def _load_collection():
+    client.load_collection(collection_name=collection_name)
+    state = client.get_load_state(collection_name=collection_name)
+    print(f"{state=}")
+
 def _get_query_embedding(query: str) -> List[float]:
     res = genai_client.embed_text(
         embed_text_details=EmbedTextDetails(
@@ -48,6 +53,7 @@ def _similarity_search(vector: List[float]) -> List[List[dict]]:
     return res
 
 def main():
+    _load_collection()
     query = "サヴォワ地方はどこの国？"
     query_vector = _get_query_embedding(query)
     start = time.time()
