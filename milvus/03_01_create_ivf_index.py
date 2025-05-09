@@ -37,11 +37,14 @@ def _create_index():
     client.create_index(collection_name=collection_name, index_params=index_params)
     print(f"IVF Index creation took {time.time() - start:.2f} seconds")
 
+def _describe_index():
+    index_info = client.describe_index(collection_name=collection_name, index_name=index_ivf)
+    print(f"{index_info=}")
+
 def main():
     _check_old_index()
     _create_index()
-    index_info = client.describe_index(collection_name=collection_name, index_name=index_ivf)
-    print(f"{index_info=}")
+    _describe_index()
     client.close()
 
 if __name__ == "__main__":
